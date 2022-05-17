@@ -39,6 +39,7 @@ namespace ConsoleApp1
     }
     public class QQ
     {
+
         readonly string _userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.60 Safari/537.36";
         readonly int _timeOut = 2000;
 
