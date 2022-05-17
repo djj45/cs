@@ -1,16 +1,39 @@
 ﻿using System;
+using Newtonsoft.Json;
 using System.Collections.Generic;
-using System.IO;
+using Formatting = Newtonsoft.Json.Formatting;
+using System.Collections;
 using System.Net;
 using Newtonsoft.Json.Linq;
+using System.IO;
 
-namespace _1
+namespace ConsoleApp1
 {
-    public class Wyyyy
+    public class Test
     {
         public static void Main()
         {
-            QQ netEase = new NetEase("https://music.163.com/#/song?id=1837557715");
+            /*
+              self.params = {
+            "callback": "MusicJsonCallback_lrc",
+            "pcachetime": str(round(time.time(), 3)).replace(".", ""),  # pcachetime随便写一个固定值也可以
+            "songmid": self.song_id,
+            "g_tk": "5381",
+            "jsonpCallback": "MusicJsonCallback_lrc",
+            "loginUin": "0",
+            "hostUin": "0",
+            "format": "jsonp",
+            "inCharset": "utf8",
+            "outCharset": "utf8",
+            "notice": "0",
+            "platform": "yqq",
+            "needNewCode": "0",
+            }
+            "referer": "https://y.qq.com/portal/player.html",
+            self.lyric_url = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"
+            self.info_url = "https://c.y.qq.com/v8/fcg-bin/fcg_play_single_song.fcg"
+             */
+            QQ netEase = new QQ("https://music.163.com/#/song?id=1837557715");
             Srt.WriteSrt(Lyric.ToRangeList(netEase, Lyric.RangeMode.NO), "", netEase.SongName, netEase.Singer);
         }
     }
@@ -284,3 +307,5 @@ namespace _1
         }
     }
 }
+
+
