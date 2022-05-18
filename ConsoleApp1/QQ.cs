@@ -16,18 +16,9 @@ namespace ConsoleApp1
             /*
               self.params = {
             "callback": "MusicJsonCallback_lrc",
-            "pcachetime": str(round(time.time(), 3)).replace(".", ""),  # pcachetime随便写一个固定值也可以
             "songmid": self.song_id,
             "g_tk": "5381",
-            "jsonpCallback": "MusicJsonCallback_lrc",
-            "loginUin": "0",
-            "hostUin": "0",
             "format": "jsonp",
-            "inCharset": "utf8",
-            "outCharset": "utf8",
-            "notice": "0",
-            "platform": "yqq",
-            "needNewCode": "0",
             }
             "referer": "https://y.qq.com/portal/player.html",
             self.lyric_url = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"
