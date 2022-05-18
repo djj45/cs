@@ -11,26 +11,36 @@ namespace _1
     {
         public static void Main()
         {
-            QQ qq = new QQ("https://y.qq.com/n/ryqq/songDetail/001iZpgK2FNgjr");
-            //List<string> list = qq.LyricList;
-            //foreach (string str in list)
-            //{
-            //    Console.Write(str);
-            //}
-            Console.WriteLine(qq.Singer);
-            //using (StreamWriter tr = new StreamWriter("12.txt"))
-            //{
-            //    foreach (var item in list)
-            //    {
-            //        tr.Write(item);
-            //    }
-            //};
-            //Console.Write(netEase.LyricJson);
-
-
+            Console.WriteLine("请输入网易云音乐或者qq音乐的链接或者id");
+            string url = Console.ReadLine();
+            if (url != null)
+            {
+                Music music = Lyric.GetLyric(url);
+                List<string> list = music.TLLyricList;
+                Srt.WriteSrt(list, "", music.SongName, music.Singer);
+            }
+            Console.ReadKey();
         }
     }
-    public class NetEase
+    public abstract class Music
+    {
+        public enum PlatForm
+        {
+            NetEase,
+            QQ,
+        }
+        public abstract List<string> LyricList { get; }
+        public abstract List<string> TLyricList { get; }
+        public abstract List<string> LTLyricList { get; }
+        public abstract List<string> TLLyricList { get; }
+        public abstract List<string> LTRangeLyricList { get; }
+        public abstract List<string> TLRangeLyricList { get; }
+
+        public abstract string SongName { get; }
+        public abstract string Singer { get; }
+    }
+
+    public class NetEase : Music
     {
         readonly string _userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.60 Safari/537.36";
         readonly int _timeOut = 2000;
@@ -41,7 +51,7 @@ namespace _1
         string LyricData { get; set; }
         string InfoData { get; set; }
 
-        public JObject LyricJson => JObject.Parse(LyricData);
+        JObject LyricJson => JObject.Parse(LyricData);
         JObject InfoJson => JObject.Parse(InfoData);
 
         string Lrc
@@ -64,6 +74,10 @@ namespace _1
             get
             {
                 string tlrc = LyricJson["tlyric"]["lyric"].ToString();
+                if (tlrc == "")
+                {
+                    return tlrc;
+                }
                 if (tlrc[tlrc.Length - 1] != '\n')
                 {
                     return tlrc + "\n";
@@ -77,34 +91,19 @@ namespace _1
         string LTLyric => Lrc + TLrc;
         string TLLyric => TLrc + Lrc;
 
-        public List<string> LyricList => Lyric.ToList(Lrc, true);
-        public List<string> TLyricList => Lyric.ToList(TLrc, true);
-        public List<string> LTLyricList => Lyric.ToList(LTLyric, false);
-        public List<string> TLLyricList => Lyric.ToList(TLLyric, true);
-        public List<string> LTRangeLyricList => Lyric.ToRangeList(LyricList, TLyricList, Lyric.RangeMode.LT);
-        public List<string> TLRangeLyricList => Lyric.ToRangeList(LyricList, TLyricList, Lyric.RangeMode.TL);
+        public override List<string> LyricList => Lyric.ToList(Lrc, false);
+        public override List<string> TLyricList => Lyric.ToList(TLrc, false);
+        public override List<string> LTLyricList => Lyric.ToList(LTLyric, false);
+        public override List<string> TLLyricList => Lyric.ToList(TLLyric, false);
+        public override List<string> LTRangeLyricList => Lyric.ToRangeList(LyricList, TLyricList, Lyric.RangeMode.LT);
+        public override List<string> TLRangeLyricList => Lyric.ToRangeList(LyricList, TLyricList, Lyric.RangeMode.TL);
 
-        public string SongName => InfoJson["songs"][0]["name"].ToString();
-        public string Singer => InfoJson["songs"][0]["artists"][0]["name"].ToString();
+        public override string SongName => InfoJson["songs"][0]["name"].ToString();
+        public override string Singer => InfoJson["songs"][0]["artists"][0]["name"].ToString();
 
         public NetEase(string id)
         {
-            if (int.TryParse(id, out _))
-            {
-                Id = id.Trim(' ');
-            }
-            else
-            {
-                try
-                {
-                    Id = id.Trim(' ').Split('=')[1];
-                }
-                catch (Exception)
-                {
-                    //输入链接错误
-                }
-            }
-
+            Id = id;
             LyricUrl = "http://music.163.com/api/song/lyric?os=pc&id=" + Id + "&lv=-1&tv=-1";
             InfoUrl = "http://music.163.com/api/song/detail/?id=" + Id + "&ids=[" + Id + "]";
             LyricData = Request(LyricUrl);
@@ -136,6 +135,55 @@ namespace _1
 
     public static class Lyric
     {
+        public static Music GetLyric(string url)
+        {
+            Music.PlatForm platForm = Music.PlatForm.QQ;
+            url = url.Trim();
+            if (url.Contains("="))
+            {
+                try
+                {
+                    url = url.Split('=')[1];
+                    platForm = Music.PlatForm.NetEase;
+                }
+                catch (Exception)
+                {
+
+                }
+            }
+            else if (url.Contains("https"))
+            {
+                try
+                {
+                    url = url.Split('/')[6];
+                    platForm = Music.PlatForm.QQ;
+                }
+                catch (Exception)
+                {
+
+                }
+            }
+            else if (int.TryParse(url, out _))
+            {
+                platForm = Music.PlatForm.NetEase;
+            }
+            else
+            {
+                platForm = Music.PlatForm.QQ;
+            }
+
+            if (platForm == Music.PlatForm.NetEase)
+            {
+                Music music = new NetEase(url);
+                return music;
+            }
+            else
+            {
+                Music music = new QQ(url);
+                return music;
+            }
+        }
+
         public enum RangeMode
         {
             //T:translated lyric    L:lyric
@@ -231,9 +279,10 @@ namespace _1
 
     public static class Srt
     {
-        public static string GetTime(string lrc)
+        public static List<string> interLudeList = new List<string>();
+        public static string GetTime(string lyric)
         {
-            return lrc.Split('[')[1].Split(']')[0];
+            return lyric.Split('[')[1].Split(']')[0];
         }
 
         public static string GetLyric(string lyric)
@@ -270,14 +319,18 @@ namespace _1
 
         public static string HandleLyric(string lyric)
         {
-            return lyric.TrimEnd('\n', '\\') + "\\n\n";
+            return lyric.TrimEnd('\n', '/') + "\\n\n";
         }
 
-        public static void CheckTime(ref string preTime, ref string time, ref bool flag)
+        public static void CheckTime(ref string preTime, ref string time, ref bool flag, ref string lyric)
         {
             if (TransTime(preTime) - TransTime(time) > 60)
             {
                 flag = true;
+            }
+            if (TransTime(time) - TransTime(preTime) > 8)
+            {
+                interLudeList.Add(preTime + " --> " + time + " " + lyric);
             }
         }
 
@@ -291,49 +344,57 @@ namespace _1
 
             using (StreamWriter srt = File.CreateText(path + songName + "-" + singer + ".srt"))
             {
-                foreach (string line in list)
+                if (list.Count != 0)
                 {
-                    if (!IsLyric(line))
-                        continue;
-                    if (count == 0)
+                    foreach (string line in list)
                     {
-                        preTime = GetTime(line);
+                        if (!IsLyric(line))
+                            continue;
+                        if (count == 0)
+                        {
+                            preTime = GetTime(line);
+                            prelyric = HandleLyric(GetLyric(line));
+                            count++;
+                            continue;
+                        }
+
+                        time = GetTime(line);
+                        CheckTime(ref preTime, ref time, ref flag, ref prelyric);
+
+                        if (flag)
+                        {
+                            time = ExtendTime(preTime);
+                        }
+
+                        srt.WriteLine(count);
+                        srt.WriteLine("00:" + preTime.Replace('.', ',') + " --> " + "00:" + time.Replace('.', ','));
+                        srt.WriteLine(prelyric);
+
+                        if (flag)
+                        {
+                            flag = false;
+                            time = GetTime(line);
+                        }
+
+                        preTime = time;
                         prelyric = HandleLyric(GetLyric(line));
                         count++;
-                        continue;
-                    }
-
-                    time = GetTime(line);
-                    CheckTime(ref preTime, ref time, ref flag);
-
-                    if (flag)
-                    {
-                        time = ExtendTime(preTime);
                     }
 
                     srt.WriteLine(count);
-                    srt.WriteLine("00:" + preTime.Replace('.', ',') + " --> " + "00:" + time.Replace('.', ','));
+                    srt.WriteLine("00:" + preTime.Replace('.', ',') + " --> " + "00:" + ExtendTime(preTime).Replace('.', ','));
                     srt.WriteLine(prelyric);
 
-                    if (flag)
+                    foreach (string item in interLudeList)
                     {
-                        flag = false;
-                        time = GetTime(line);
+                        Console.Write(item);
                     }
-
-                    preTime = time;
-                    prelyric = HandleLyric(GetLyric(line));
-                    count++;
                 }
-
-                srt.WriteLine(count);
-                srt.WriteLine("00:" + preTime.Replace('.', ',') + " --> " + "00:" + ExtendTime(preTime).Replace('.', ','));
-                srt.WriteLine(prelyric);
             };
         }
     }
 
-    public class QQ
+    public class QQ : Music
     {
 
         readonly string _userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.60 Safari/537.36";
@@ -359,7 +420,7 @@ namespace _1
         {
             get
             {
-                if (_lrc[_lrc.Length-1] != '\n')
+                if (_lrc[_lrc.Length - 1] != '\n')
                 {
                     return _lrc + "\n";
                 }
@@ -370,7 +431,7 @@ namespace _1
             }
             set
             {
-                _lrc = value; 
+                _lrc = value;
             }
         }
 
@@ -378,6 +439,10 @@ namespace _1
         {
             get
             {
+                if (_tlrc == "")
+                {
+                    return _tlrc;
+                }
                 if (_tlrc[_tlrc.Length - 1] != '\n')
                 {
                     return _tlrc + "\n";
@@ -396,30 +461,21 @@ namespace _1
         string LTLyric => Lrc + TLrc;
         string TLLyric => TLrc + Lrc;
 
-        public List<string> LyricList => Lyric.ToList(Lrc, true);
-        public List<string> TLyricList => Lyric.ToList(TLrc, true);
-        public List<string> LTLyricList => Lyric.ToList(LTLyric, false);
-        public List<string> TLLyricList => Lyric.ToList(TLLyric, true);
-        public List<string> LTRangeLyricList => Lyric.ToRangeList(LyricList, TLyricList, Lyric.RangeMode.LT);
-        public List<string> TLRangeLyricList => Lyric.ToRangeList(LyricList, TLyricList, Lyric.RangeMode.TL);
+        public override List<string> LyricList => Lyric.ToList(Lrc, false);
+        public override List<string> TLyricList => Lyric.ToList(TLrc, false);
+        public override List<string> LTLyricList => Lyric.ToList(LTLyric, false);
+        public override List<string> TLLyricList => Lyric.ToList(TLLyric, false);
+        public override List<string> LTRangeLyricList => Lyric.ToRangeList(LyricList, TLyricList, Lyric.RangeMode.LT);
+        public override List<string> TLRangeLyricList => Lyric.ToRangeList(LyricList, TLyricList, Lyric.RangeMode.TL);
 
-        public string SongName => InfoJson["data"][0]["name"].ToString();
-        public string Singer => InfoJson["data"][0]["singer"][0]["name"].ToString();
+        public override string SongName => InfoJson["data"][0]["name"].ToString();
+        public override string Singer => InfoJson["data"][0]["singer"][0]["name"].ToString();
         byte[] ByteLrc => Convert.FromBase64String(Base64Lrc);
         byte[] ByteTLrc => Convert.FromBase64String(Base64TLrc);
 
         public QQ(string id)
         {
-            try
-            {
-                id = id.Split('/')[6];
-            }
-            catch (Exception)
-            {
-
-            }
-
-            Id = id.Trim(' ');
+            Id = id;
             LyricUrl = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?" + _params + Id;
             InfoUrl = "https://c.y.qq.com/v8/fcg-bin/fcg_play_single_song.fcg?" + _params + Id;
             LyricData = Request(LyricUrl);
@@ -428,7 +484,7 @@ namespace _1
             TLrc = Encoding.UTF8.GetString(ByteTLrc);
         }
 
-        public string Request(string url)
+        string Request(string url)
         {
             try
             {
