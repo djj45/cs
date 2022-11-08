@@ -19,24 +19,16 @@ namespace LyricTool
         static List<List<float>> widthPoss = new List<List<float>>();
         static List<List<string>> kanas = new List<List<string>>();
         static List<string> lines = new List<string>();
+        static List<float> widthPos = new List<float>();
 
         static async Task<(List<float>, List<string>)> GetKana(string line)
         {
-            //@用语素处理之后确定index和widthPos
+            //歌词有空格或者括号位置有误差
             List<int> index = new List<int>();
             List<string> kana = new List<string>();
-            List<float> widthPos;
-
-            for (int i = 0; i < line.Length; i++)
-            {
-                string code = GetCode(line[i].ToString());
-                if (code.CompareTo("30ff") > 0 || code.CompareTo("3041") < 0)
-                {
-                    index.Add(i);
-                }
-            }
-
-            widthPos = GetWidthPos(index, line);
+            widthPos.Clear();
+            int count = 0;
+            float start = width / 2 - (float)line.Length / 2 * fontSize * width / fontConstant;
 
             using (var tagger = MeCabIpaDicTagger.Create())
             {
@@ -45,50 +37,130 @@ namespace LyricTool
 
                 foreach (var node in nodes)
                 {
-                    string code = GetCode(node.Surface[0].ToString());
-                    if (code.CompareTo("30ff") > 0 || code.CompareTo("3041") < 0)
-                    {
-                        string s = await converter.Convert(node.Reading, To.Hiragana, Mode.Spaced, RomajiSystem.Nippon, "(", ")");
-                        string[] ss = null;
-                        s = s.TrimEnd(' ');
+                    bool flag = true;
+                    List<string> ss = new List<string>();
 
-                        if (s.Contains(" "))
+                    if (node.Surface.Length >= 3)
+                    {
+                        //断ち切る
+                        string code1 = GetCode(node.Surface[0].ToString());
+                        string code2 = GetCode(node.Surface[1].ToString());
+                        string code3 = GetCode(node.Surface[2].ToString());
+
+                        bool isKanji1 = code1.CompareTo("30ff") > 0 || code1.CompareTo("3041") < 0;
+                        bool isKanji2 = code2.CompareTo("30ff") > 0 || code2.CompareTo("3041") < 0;
+                        bool isKanji3 = code3.CompareTo("30ff") > 0 || code3.CompareTo("3041") < 0;
+
+                        if (isKanji1 && !isKanji2 && isKanji3)
                         {
-                            ss = s.Split(" ".ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
+                            List<float> temp = new List<float>();
+                            string s = await converter.Convert(node.Reading, To.Hiragana, Mode.Spaced, RomajiSystem.Nippon, "(", ")");
+                            ss.Add(s.Substring(0, 2));
+                            ss.Add(s.Substring(2, s.Length - 2));
+
+                            index.Add(0);
+                            temp = GetWidthPos(index, start, count);
+                            widthPos.Add(temp[0]);
+                            count += 2;
+                            index.Clear();
+
+                            index.Add(0);
+                            temp = GetWidthPos(index, start, count);
+                            widthPos.Add(temp[0]);
+                            count += node.Surface.Length - 2;
+                            index.Clear();
+
+                            flag = false;
+                        }
+                    }
+                    if (flag)
+                    {
+                        for (int i = 0; i < node.Surface.Length; i++)
+                        {
+                            string _code = GetCode(node.Surface[i].ToString());
+                            if (_code.CompareTo("30ff") > 0 || _code.CompareTo("3041") < 0)
+                            {
+                                index.Add(i);
+                            }
                         }
 
-                        if (ss != null)
+                        if (index.Count != 0)
                         {
-                            for (int i = 0; i < ss.Length; i++)
+                            foreach (var item in GetWidthPos(index, start, count))
+                            {
+                                widthPos.Add(item);
+                            }
+                        }
+
+                        count += node.Surface.Length;
+                        index.Clear();
+                    }
+
+                    bool hasKanji = false;
+                    foreach (var item in node.Surface)
+                    {
+                        string code = GetCode(item.ToString());
+                        if (code.CompareTo("30ff") > 0 || code.CompareTo("3041") < 0)
+                        {
+                            hasKanji = true;
+                            break;
+                        }
+                    }
+
+                    if (hasKanji)
+                    {
+                        string s = await converter.Convert(node.Reading, To.Hiragana, Mode.Spaced, RomajiSystem.Nippon, "(", ")");
+                        s = s.TrimEnd(' ');
+
+                        if (s.Contains(" ") && kana.Count + 1 != widthPos.Count && ss.Count == 0)
+                        {
+                            foreach (var item in s.Split(" ".ToCharArray(), StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                ss.Add(item);
+                            }
+                        }
+                        else if(s.Contains(" ") && kana.Count + 1 == widthPos.Count)
+                        {
+                            s = s.Replace(" ", "");
+                        }
+
+                        if (ss.Count != 0)
+                        {
+                            for (int i = 0; i < ss.Count; i++)
                             {
                                 s = ss[i];
                                 for (int j = 0; j < s.Length; j++)
                                 {
                                     if (node.Surface.Contains(s[j].ToString()))
                                     {
+                                        //汉字如果和假名同音不行
                                         s = s.Remove(j);
                                         j--;
                                     }
                                 }
-
-                                kana.Add(s);
+                                if (s != "")
+                                {
+                                    kana.Add(s);
+                                }
                             }
 
                         }
                         else
                         {
-                            foreach (var item in node.Surface)
+                            for (int i = 0; i < s.Length; i++)
                             {
-                                for (int i = 0; i < s.Length; i++)
+                                if (node.Surface.Contains(s[i].ToString()))
                                 {
-                                    if (node.Surface.Contains(s[i].ToString()))
-                                    {
-                                        s = s.Remove(i);
-                                        i--;
-                                    }
+                                    //汉字如果和假名同音不行
+                                    s = s.Replace(s[i].ToString(), "");
+                                    i--;
                                 }
                             }
-                            kana.Add(s);
+                            
+                            if (s != "")
+                            {
+                                kana.Add(s);
+                            }
                         }
                     }
                 }
@@ -103,11 +175,10 @@ namespace LyricTool
             return Convert.ToString(b[1], 16) + Convert.ToString(b[0], 16);
         }
 
-        static List<float> GetWidthPos(List<int> index, string line)
+        static List<float> GetWidthPos(List<int> index, float start, int count)
         {
             List<float> list = new List<float>();
             List<float> widthPos = new List<float>();
-            float start = width / 2 - (float)line.Length / 2 * fontSize * width / fontConstant;
 
             if (index.Count == 1)
             {
@@ -142,7 +213,7 @@ namespace LyricTool
 
             foreach (var item in list)
             {
-                widthPos.Add(start + (fontSize / 2 + item * fontSize) * width / fontConstant);
+                widthPos.Add(start + (fontSize / 2 + item * fontSize + count * fontSize) * width / fontConstant);
             }
 
             return widthPos;
@@ -221,15 +292,17 @@ namespace LyricTool
 
                     sw.WriteLine("Dialogue: 0,0:" + pretime + ",0:" + time + ",lyric,,0,0,0,," + prelyric);
 
+                    Console.WriteLine(prelyric);
                     for (int j = 0; j < kanas[i - 1].Count; j++)
                     {
                         sw.WriteLine("Dialogue: 0,0:" + pretime + ",0:" + time + ",kana,,0,0,0,,{\\pos(" + widthPoss[i - 1][j] + "," + heightPos + ")}" + kanas[i - 1][j]);
                     }
 
-                    Console.WriteLine(prelyric);
 
                     pretime = time;
                     prelyric = lyric;
+
+                    //最后一句，8秒提醒
                 }
             }
 
